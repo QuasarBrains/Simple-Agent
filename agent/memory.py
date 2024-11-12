@@ -93,6 +93,11 @@ class MemoryEngine:
             if not importance:
                 return "Error adding memory: No importance provided."
 
+            print("Type of memory: ", type)
+
+            if type not in ["semantic", "episodic"]:
+                return "Error adding memory: Invalid memory type provided. Must be either 'semantic' or 'episodic'."
+
             memory = Record(
                 id=None,
                 title=title,

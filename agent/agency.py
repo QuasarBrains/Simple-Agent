@@ -52,7 +52,6 @@ class Agency:
             description += "Requirements: {}\n".format(
                 "\n".join([f"- {req}" for req in task.requirements])
             )
-            description += f"Notes:\n{task.notes}\n"
             description += f"Completed: {task.completed}\n\n"
             description += "---"
         return description

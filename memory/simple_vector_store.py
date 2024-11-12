@@ -52,7 +52,7 @@ def add_simple_vector_store_record(record: Record) -> None:
     try:
         with open(f"{svs_directory}/{record.title}.md", "w") as f:
             f.write(
-                f"---\nimportance: {record.importance}\ntype: record\n---\n# {record.title}\n{record.content}"
+                f"---\nimportance: {record.importance}\ntype: {record.type}\n---\n# {record.title}\n{record.content}"
             )
         sync_svs_store(svs_name)
     except Exception as e:
