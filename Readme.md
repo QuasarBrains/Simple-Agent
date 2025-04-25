@@ -33,7 +33,7 @@ To make Simple Agent work well, you'll need to meet the following prerequisites:
 
 This repository is a fairly straightforward Python project. **You will need to have Python installed**, and I used Python 3.10 on MacOS, so I know that this version worked. If you use a different version, or use a platform other than MacOS and notice bugs, please let me know in an issue. You should be able to clone the repository, install dependencies (in a virtual environment if you choose), fill in the `.env` file, and run `simple-agent.py` to see it work.
 
-1. Start by cloning the repository:
+1. Start by cloning the repository (or forking if you want to extend it a lot):
 
 ```bash
    git clone https://github.com/AidanTilgner/Simple-Agent.git
@@ -91,7 +91,7 @@ You can modify prompts in the `agent.py`, `agency.py`, `memory.py`, and `environ
 The `system_prompt.md` file is the source of the agent's system prompt, which can be modified as well.
 
 **Using Different Models**
-You might find that using different models is more useful. In the future, there will be additional configuration options that will allow you to use models of your choice. For now, you can take a look at the `openai.py` and `llm.py` files for reference. Essentially, the agent can use any model through the `LLM` interface, so you can implement custom models that way. The main logic for instantiating these are in the `main.py` file, where the default is OpenAI's GPT-4o.
+You might find that using different models is more useful. However, each provider exposes a slightly different interface for their models, making use of them a less-than-straightforward process in some cases. With that said, the `LLM` class allows for easy adaptation of the Simple Agent standard data structures to different APIs. Currently, Openai, Anthropic, and Gemini APIs are supported by default, in corresponding files in `llms/`. `MODEL_CHOICE` will allow you to set which provider you'd like to use, and then setting the corresponding `[PROVIDER]_MODEL` and `[PROVIDER]_API_KEY` environment variables in `.env` will allow you to configure the specific model.
 
 **Adding Tools**
 The `tools/` directory is where you'll find tools. Each tool must fit the `Tool` class, in order to be used by the agent. Check out `toolbox.py` to see a current list of included tools, and how they are used. If you want to add a tool, you can use the `write_file.py`, `read_file.py`, and `send_message_to_user.py` tools as a reference. More tools will be included in the future. This is another area where PRs are welcome.
@@ -108,22 +108,20 @@ I'm still working on the roles system, bare with me. But you can see the beginni
 > To switch between roles, just ask the agent to do it. For example, you can say "I'd like some help with research...", or more specifically "I'd like to switch to the researcher role." You'll see an "As a [ROLE]" message to confirm.
 
 ## Adding Memory
-Check out [the tutorial](/documentation/adding-memory.md) to learn how to add memory to Simple Agent.
+Check out [the tutorial](/documentation/adding-memory.md) to learn how to add memory to Simple Agent. This isn't necessary for the agent to work, however allows its memory to persist between sessions.
 
 ## Roadmap
-I'm looking to polish this project into a really solid framework for building agents. But it's going to need to stay as a core, rather than a full-fledged agent. To make a full-fledged agent, this should be forked.
+I'm looking to polish this project into a really solid framework for building agents. But it's going to need to stay as a core, rather than a full-fledged agent. To make a full-fledged agent, this should be forked. In it's current state, it's usable and functional, and extensible.
 
 ## Features
 **Existing Features**
 - [x] Implement memory and learning through [Simple Vector Store](https://github.com/AidanTilgner/Simple-Vector-Store)
 - [x] Allow selection of additional models
 - [x] Get better editing
+- [x] "Modes" that the agent can switch into for specialized operations, with different tool layouts
 
-**Planned Features**
-These are things that I currently plan on doing. If you have ideas for features or feadback, don't hesitate to open an issue so we can discuss it.
-- [ ] "Modes" that the agent can switch into for specialized operations, with different tool layouts
+**WIP (kinda) Features**
+These are things that I currently plan on doing or hope to do. If you have ideas for features or feadback, don't hesitate to open an issue so we can discuss it.
 - [ ] A more robust benchmarking system through [Benchy](https://github.com/AidanTilgner/Benchy)
-
-**Possible Features**
 - [ ] A type of procedural memory
 - [ ] A sort of plugin system
