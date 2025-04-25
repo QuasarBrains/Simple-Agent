@@ -12,6 +12,7 @@ from rich.console import Console
 from rich.markdown import Markdown
 
 from agent.agent import Agent
+from llms.google import GoogleLLM
 from llms.openai import OpenAILLM
 from llms.anthropic import AnthropicLLM
 from memory.simple_vector_store import SVSVectorStore
@@ -49,6 +50,7 @@ if not SYSTEM_PROMPT:
 LLM_CHOICE_MAP = {
     "openai": OpenAILLM,
     "anthropic": AnthropicLLM,
+    "google": GoogleLLM,
 }
 LLM = LLM_CHOICE_MAP.get(llm_choice, OpenAILLM)
 
