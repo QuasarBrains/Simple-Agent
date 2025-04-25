@@ -152,7 +152,7 @@ def init_openai_llm():
     if env_model != "" and env_model is not None:
         openai_model = env_model
     if not openai_model:
-        openai_model = "gpt-4o-mini"
+        openai_model = "models/gemini-2.0-flash"
 
 
 GoogleLLM = LLM(
