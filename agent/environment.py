@@ -13,6 +13,8 @@ class Environment:
 
     def __init__(self, pubsub: PubSub) -> None:
         self.pubsub = pubsub
+        self.unseen_messages = []
+        self.new_tool_messages = []
 
         self.listen_to_messages()
         self.listen_to_new_tool_messages()
@@ -38,12 +40,19 @@ class Environment:
         if len(unseen_messages) == 0 and len(new_tool_messages) == 0:
             return ""
 
+        # Full results already live in role=tool messages. Keep their content
+        # available to peek_environment/memory, without duplicating it in model input.
+        tool_notice = (
+            f"{len(new_tool_messages)} tool result(s) provided in conversation history."
+            if new_tool_messages
+            else ""
+        )
         return f"""
         New Messages:
         {"".join(["- {}".format(message) for message in unseen_messages])}
 
         New Tool Messages:
-        {"".join(["- {}".format(message) for message in new_tool_messages])}
+        {tool_notice}
         """
 
     def peek_environment(self):

@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
+from jsonschema import Draft202012Validator, ValidationError
+
 from utils.pubsub import PubSub
 
 
@@ -27,6 +29,21 @@ class Toolbox:
 
     def __init__(self, pubsub: PubSub) -> None:
         self.pubsub = pubsub
+        self.tools = {}
+
+    def execute(self, call: ToolCall) -> tuple[str, bool]:
+        """Validate before execution and return an explicit error result."""
+        tool = self.get_tool(call.name)
+        if tool is None:
+            return f"Tool '{call.name}' not found in the current role.", True
+        try:
+            Draft202012Validator(tool.parameters).validate(call.arguments)
+        except ValidationError as error:
+            return f"Invalid arguments for {call.name}: {error.message}", True
+        try:
+            return str(self.run_tool(call.name, call.arguments)), False
+        except Exception as error:
+            return f"Tool {call.name} failed: {error}", True
 
     def get_tools_listed(self) -> List[Tool]:
         return list(self.tools.values())
@@ -54,6 +71,7 @@ class Toolbox:
 
     def register_tool(self, tool: Tool):
         try:
+            Draft202012Validator.check_schema(tool.parameters)
             self.tools[tool.name] = tool
         except Exception as e:
             raise Exception(f"Error registering tool: {e}")

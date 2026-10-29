@@ -3,10 +3,9 @@ from llms.llm import LLM
 from roles.index import Role
 from utils.pubsub import PubSub
 from tools.index import Tool, Toolbox
-from rich.console import Console
+from utils.terminal import console
+from rich.text import Text
 from roles.config import ROLES_INCLUDED, DEFAULT_ROLE
-
-console = Console()
 
 
 class IdentityManager:
@@ -49,7 +48,7 @@ class IdentityManager:
         return description
 
     def set_role(self, role_name: str) -> None:
-        console.rule(f"As a {role_name}", style="blue")
+        console.print(Text.assemble(("Role  ", "dim"), (role_name, "cyan")))
         if self.current_role is not None:
             self.toolbox.unregister_tools(self.current_role.get_tools_listed())
         gotten_role = self.available_roles.get(role_name)

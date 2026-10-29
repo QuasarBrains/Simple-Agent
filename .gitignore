@@ -2,6 +2,10 @@
 .env
 .ruff_cache/
 venv/
+.venv/
+.uv-cache/
+.uv-python/
+simple-agent-logs/
 __pycache__/
 agent.thread
 agent.log
@@ -11,3 +15,4 @@ pyrightconfig.json
 playground/*
 _private/
 datastore/
+config.toml

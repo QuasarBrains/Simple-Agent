@@ -1,13 +1,11 @@
 from dataclasses import dataclass
 from typing import Any, List
 
-from rich.console import Console
+from utils.terminal import console
 
 from llms.llm import LLM
 from tools.index import Tool
 from utils.pubsub import PubSub
-
-console = Console()
 
 
 @dataclass

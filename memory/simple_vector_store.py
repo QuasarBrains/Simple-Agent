@@ -2,10 +2,8 @@ import os
 from typing import List, Literal, cast
 from memory.vector_store import VectorStore, Record
 import requests
-from rich.console import Console
+from utils.terminal import console
 import frontmatter
-
-console = Console()
 
 svs_url = ""
 svs_directory = ""
@@ -111,21 +109,22 @@ def build_svs_store(name: str):
         raise ValueError("Error building store", e)
 
 
-def on_svs_init():
+def on_svs_init(config=None):
     try:
         global svs_url
         global svs_directory
         global svs_name
 
-        svs_url = os.environ.get("SIMPLE_VECTOR_STORE_URL", "")
+        config = os.environ if config is None else config
+        svs_url = config.get("SIMPLE_VECTOR_STORE_URL", "")
         if not svs_url:
             raise ValueError("SIMPLE_VECTOR_STORE_URL not set")
 
-        svs_directory = os.environ.get("SIMPLE_VECTOR_STORE_DIRECTORY", "")
+        svs_directory = config.get("SIMPLE_VECTOR_STORE_DIRECTORY", "")
         if not svs_directory:
             raise ValueError("SIMPLE_VECTOR_STORE_DIRECTORY not set")
 
-        svs_name = os.environ.get("SIMPLE_VECTOR_STORE_NAME", "")
+        svs_name = config.get("SIMPLE_VECTOR_STORE_NAME", "")
         if not svs_name:
             raise ValueError("SIMPLE_VECTOR_STORE_NAME not set")
 

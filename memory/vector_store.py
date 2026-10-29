@@ -13,10 +13,10 @@ class Record:
 
 
 class VectorStore:
+    on_startup: Optional[Callable[[], None]] = None
     name: str
     query_store: Callable[[str], List[Record]]
     add_record: Callable[[Record], None]
-    on_startup: Callable[[], None]
 
     def __init__(
         self,
