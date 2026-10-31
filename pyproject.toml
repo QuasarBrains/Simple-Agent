@@ -7,7 +7,7 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "anthropic>=2.0.0,<3",
     "beautifulsoup4==4.12.3",
-    "duckduckgo-search==6.3.3",
+    "ddgs==9.16.1",
     "wikipedia-api==0.6.9",
     "openai>=2,<3",
     "pymupdf==1.24.13",
@@ -15,6 +15,7 @@ dependencies = [
     "python-frontmatter==1.1.0",
     "requests==2.32.3",
     "rich==13.7.1",
+    "prompt-toolkit==3.0.53",
     "selenium==4.24.0",
     "tiktoken==0.7.0",
     "webdriver-manager==4.0.2",

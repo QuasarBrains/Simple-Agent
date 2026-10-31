@@ -22,3 +22,5 @@ MEMORY_SCHEMA = (
         active_profile_id INTEGER NOT NULL REFERENCES embedding_profiles(id)
     )""",
 )
+
+MEMORY_REMOVAL_SCHEMA = ("ALTER TABLE memories ADD COLUMN removed_at TEXT",)

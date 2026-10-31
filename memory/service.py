@@ -2,7 +2,7 @@
 
 import json
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import Any, Protocol, runtime_checkable
 
 
 class MemoryServiceError(RuntimeError):
@@ -10,6 +10,14 @@ class MemoryServiceError(RuntimeError):
 
 
 class MemoryValidationError(ValueError):
+    pass
+
+
+class MemoryNotFoundError(MemoryServiceError):
+    pass
+
+
+class MemoryConflictError(MemoryServiceError):
     pass
 
 
@@ -54,6 +62,42 @@ class Memory:
     created_at: str | None = None
     updated_at: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+    removed_at: str | None = None
+
+
+@dataclass(frozen=True)
+class MemoryUpdate:
+    """Partial correction: omitted fields retain their persisted values."""
+
+    title: str | None = None
+    content: str | None = None
+    type: str | None = None
+    importance: str | None = None
+
+    def __post_init__(self):
+        if all(
+            value is None
+            for value in (self.title, self.content, self.type, self.importance)
+        ):
+            raise MemoryValidationError("Provide at least one memory field to update")
+        MemoryDraft(
+            title=self.title if self.title is not None else "unchanged",
+            content=self.content if self.content is not None else "unchanged",
+            type=self.type if self.type is not None else "semantic",
+            importance=self.importance if self.importance is not None else "medium",
+        )
+
+    def apply(self, memory: Memory) -> MemoryDraft:
+        return MemoryDraft(
+            title=self.title if self.title is not None else memory.title,
+            content=self.content if self.content is not None else memory.content,
+            type=self.type if self.type is not None else memory.type,
+            importance=self.importance
+            if self.importance is not None
+            else memory.importance,
+            namespace=memory.namespace,
+            metadata=memory.metadata,
+        )
 
 
 @dataclass(frozen=True)
@@ -90,3 +134,19 @@ class MemoryService(Protocol):
     def add(self, draft: MemoryDraft) -> Memory: ...
 
     def search(self, query: MemoryQuery) -> list[SearchResult]: ...
+
+
+@runtime_checkable
+class EditableMemoryService(MemoryService, Protocol):
+    """Optional standard capability; legacy add/search adapters remain valid."""
+
+    def get(self, memory_id: int | str, namespace: str = "default") -> Memory: ...
+
+    def update(
+        self, memory_id: int | str, changes: MemoryUpdate, namespace: str = "default"
+    ) -> Memory: ...
+
+
+@runtime_checkable
+class RemovableMemoryService(MemoryService, Protocol):
+    def remove(self, memory_id: int | str, namespace: str = "default") -> Memory: ...

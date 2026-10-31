@@ -1,11 +1,11 @@
 from dataclasses import dataclass
 from typing import Any, List
 
-from utils.terminal import console
+from agent.workspaces.workspace import Workspace
 
-from llms.llm import LLM
 from tools.index import Tool
 from utils.pubsub import PubSub
+from utils.terminal import console
 
 
 @dataclass
@@ -17,17 +17,33 @@ class Task:
     notes: str
 
 
-class Agency:
+class Tasks(Workspace):
+    name = "tasks"
+
     pubsub: PubSub
-    llm: LLM
     tasks: List[Task]
     silence_actions: bool
 
-    def __init__(self, pubsub: PubSub, llm: LLM, silence_actions: bool) -> None:
+    def __init__(self, pubsub: PubSub, silence_actions: bool) -> None:
+        super().__init__()
         self.pubsub = pubsub
-        self.llm = llm
         self.tasks = []
         self.silence_actions = silence_actions
+
+    def get_tools(self) -> list[Tool]:
+        return [
+            self.disclosure_tool(),
+            self.create_task_tool(),
+            self.complete_task_tool(),
+            self.modify_task_notes_tool(),
+            self.modify_task_requirements_tool(),
+        ]
+
+    def has_pending_work(self) -> bool:
+        return self.has_incomplete_tasks()
+
+    def active_task_ids(self) -> list[str]:
+        return [task.id for task in self.get_incomplete_tasks()]
 
     def get_new_task_id(self) -> str:
         return f"task_{len(self.tasks) + 1}"
@@ -44,15 +60,35 @@ class Agency:
     def get_tasks_described(self, tasks: List[Task]):
         description = ""
         for task in tasks:
-            description += "---"
+            description += "<task>\n"
             description += f"Task ID: {task.id}\n"
             description += f"Description: {task.description}\n"
             description += "Requirements: {}\n".format(
                 "\n".join([f"- {req}" for req in task.requirements])
             )
+            description += f"Notes: {task.notes}\n"
             description += f"Completed: {task.completed}\n\n"
-            description += "---"
+            description += "</task>\n"
         return description
+
+    def build_view(self) -> str:
+        incomplete_tasks = self.get_incomplete_tasks()
+        completed_tasks = self.get_completed_tasks()
+        task_view = (
+            f"Incomplete tasks: {len(incomplete_tasks)}\n"
+            f"Completed tasks: {len(completed_tasks)}\n"
+        )
+        if not self.is_open():
+            return task_view
+
+        task_view += self.get_tasks_described(incomplete_tasks)
+        if completed_tasks:
+            task_view += "Completed task summary:\n"
+            task_view += "\n".join(
+                f"- {task.id}: {task.description}" for task in completed_tasks
+            )
+            task_view += "\n"
+        return task_view
 
     def get_incomplete_tasks_described(self):
         return self.get_tasks_described(self.get_incomplete_tasks())

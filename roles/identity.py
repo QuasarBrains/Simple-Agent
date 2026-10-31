@@ -1,11 +1,13 @@
 from typing import Any, Dict, List, Optional
-from llms.llm import LLM
-from roles.index import Role
-from utils.pubsub import PubSub
-from tools.index import Tool, Toolbox
-from utils.terminal import console
+
 from rich.text import Text
-from roles.config import ROLES_INCLUDED, DEFAULT_ROLE
+
+from llms.llm import LLM
+from roles.config import DEFAULT_ROLE, ROLES_INCLUDED
+from roles.index import Role
+from tools.index import Tool, Toolbox
+from utils.pubsub import PubSub
+from utils.terminal import console
 
 
 class IdentityManager:
@@ -17,6 +19,8 @@ class IdentityManager:
     def __init__(self, pubsub: PubSub, toolbox: Toolbox) -> None:
         self.pubsub = pubsub
         self.toolbox = toolbox
+        self.available_roles = {}
+        self.current_role = None
 
         self.register_roles(ROLES_INCLUDED)
         self.set_role(DEFAULT_ROLE.name)
@@ -44,19 +48,26 @@ class IdentityManager:
     def get_roles_described(self) -> str:
         description = ""
         for role in self.available_roles.values():
-            description += f"## {role.name}\n**Identity**:{role.identity}\n\n"
+            tools = ", ".join(tool.name for tool in role.tools)
+            description += (
+                f"## {role.name}\n**Identity**: {role.identity}\n**Tools**: {tools}\n\n"
+            )
         return description
 
     def set_role(self, role_name: str) -> None:
-        console.print(Text.assemble(("Role  ", "dim"), (role_name, "cyan")))
-        if self.current_role is not None:
-            self.toolbox.unregister_tools(self.current_role.get_tools_listed())
         gotten_role = self.available_roles.get(role_name)
-        if gotten_role:
-            self.current_role = gotten_role
-            self.toolbox.register_tools(self.current_role.get_tools_listed())
-        else:
-            raise Exception(f"Role {role_name} not found.")
+        if gotten_role is None:
+            raise ValueError(f"Role {role_name} not found.")
+        previous_tools = self.toolbox.tools.copy()
+        try:
+            if self.current_role is not None:
+                self.toolbox.unregister_tools(self.current_role.get_tools_listed())
+            self.toolbox.register_tools(gotten_role.get_tools_listed())
+        except Exception:
+            self.toolbox.tools = previous_tools
+            raise
+        self.current_role = gotten_role
+        console.print(Text.assemble(("Role  ", "dim"), (role_name, "cyan")))
 
     def set_role_tool(self) -> Tool:
         def run(args: Any, pubsub: PubSub):

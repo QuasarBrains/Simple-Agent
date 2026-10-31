@@ -2,8 +2,9 @@
 
 import argparse
 import os
-from pathlib import Path
 import signal
+from pathlib import Path
+from threading import current_thread
 from typing import Optional
 
 from rich.text import Text
@@ -14,9 +15,10 @@ from llms.llm import create_llm
 from memory.config import create_memory_service
 from memory.service import MemoryService
 from tools.index import Toolbox
+from utils.cli_input import CLIInput
 from utils.pubsub import PubSub
-from utils.terminal import console, terminal
 from utils.runlog import SessionLogger
+from utils.terminal import console, terminal
 
 verbose = False
 silence_actions = False
@@ -42,8 +44,13 @@ MEMORY_SERVICE: Optional[MemoryService] = None
 RUN_LOGGER: Optional[SessionLogger] = None
 
 
+agent: Optional[Agent] = None
 PUBSUB = PubSub()
-TOOLBOX = Toolbox(pubsub=PUBSUB)
+CLI_INPUT = CLIInput(
+    waiting=lambda mode: agent is not None and agent.waiting_for == mode,
+    on_close=lambda: agent.stop() if agent is not None else None,
+)
+TOOLBOX = Toolbox(pubsub=PUBSUB, approve=CLI_INPUT.approve)
 
 
 def handle_errors():
@@ -76,18 +83,21 @@ def handle_logs():
     PUBSUB.subscribe("agent_log", agent_log)
     PUBSUB.subscribe("general_log", general_log)
     PUBSUB.subscribe("toolbox_log", toolbox_log)
-    for name in ("tool.started", "tool.finished"):
+    for name in (
+        "tool.started",
+        "tool.finished",
+        "tool.approval",
+        "agent.waiting",
+        "agent.resumed",
+    ):
         PUBSUB.subscribe(name, lambda data, event=name: RUN_LOGGER.event(event, data))
 
 
-prompting_user = False
-
-
-def prompt_user():
-    user_input = terminal.prompt()
-    if user_input.lower() == "exit":
-        console.print("[blue bold]Simmy:[/blue bold] Goodbye!")
+def on_user_input(user_input: str):
+    if user_input.strip().lower() == "exit":
+        console.print("[blue bold]Simon:[/blue bold] Goodbye!")
         PUBSUB.publish("exit_signal", "User exit")
+        return
     write_to_file(os.path.join(log_directory, "last_thread.md"), f"User: {user_input}")
     PUBSUB.publish("new_user_message", user_input)
 
@@ -98,9 +108,15 @@ def on_new_agent_message(message: str):
 
 
 def on_new_agent_message_with_prompt(message: str):
-    terminal.message(message)
-    write_to_file(os.path.join(log_directory, "last_thread.md"), f"Agent: {message}")
-    prompt_user()
+    on_new_agent_message(message)
+
+
+def on_agent_waiting(data: dict):
+    CLI_INPUT.submit_user(data["mode"])
+
+
+def on_agent_resumed(data: dict):
+    CLI_INPUT.cancel_user()
 
 
 def on_new_agent_perception(perception: str):
@@ -110,24 +126,25 @@ def on_new_agent_perception(perception: str):
 
 
 def handle_exit(m: str):
-    console.print("Shutting down agent...")
-    agent.stop()
-    console.print("Agent stopped. Exiting now.")
-    exit(0)
+    if agent is not None:
+        agent.stop()
+    CLI_INPUT.close()
 
 
 def signal_handler(sig, frame):
     console.print("\nReceived exit signal, shutting down...")
-    PUBSUB.publish("exit_signal", "Signal exit")
+    raise KeyboardInterrupt
 
 
 PUBSUB.subscribe("new_agent_message", on_new_agent_message)
 PUBSUB.subscribe("new_agent_prompt", on_new_agent_message_with_prompt)
 PUBSUB.subscribe("new_agent_perception", on_new_agent_perception)
+PUBSUB.subscribe("agent.waiting", on_agent_waiting)
+PUBSUB.subscribe("agent.resumed", on_agent_resumed)
 PUBSUB.subscribe("exit_signal", handle_exit)
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Run the Simmy chatbot.")
+    parser = argparse.ArgumentParser(description="Run the Simon chatbot.")
     parser.add_argument(
         "--llm", choices=LLM_CHOICES, help="Override the configured LLM provider."
     )
@@ -248,12 +265,11 @@ if __name__ == "__main__":
 
     console.print(
         Text.assemble(
-            ("\nSimmy  ", "bold blue"), (f"{llm_choice} / {LLM.model_name}", "dim")
+            ("\nSimon  ", "bold blue"), (f"{llm_choice} / {LLM.model_name}", "dim")
         )
     )
     console.print(Text(f"Logs  {RUN_LOGGER.directory.resolve()}", style="dim"))
 
-    # Create and start the agent
     agent = Agent(
         pubsub=PUBSUB,
         llm=LLM,
@@ -266,13 +282,16 @@ if __name__ == "__main__":
         memory_token_budget=memory_token_budget,
     )
     try:
-        agent.start()
         signal.signal(signal.SIGINT, signal_handler)
-        prompt_user()
-        agent.thread.join()
+        agent.start()
+        CLI_INPUT.submit_user("stimulus", initial=True)
+        CLI_INPUT.run(lambda: agent.running, on_user_input)
+    except (EOFError, KeyboardInterrupt):
+        pass
     finally:
         agent.stop()
-        if agent.thread.is_alive():
+        CLI_INPUT.close()
+        if agent.thread is not current_thread() and agent.thread.is_alive():
             agent.thread.join()
         if MEMORY_SERVICE is not None:
             MEMORY_SERVICE.close()

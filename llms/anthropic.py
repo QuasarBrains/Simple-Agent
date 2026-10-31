@@ -1,13 +1,14 @@
 """Native Anthropic Messages adapter with lossless content-block replay."""
 
-from copy import deepcopy
 import os
+from copy import deepcopy
 
 from anthropic import Anthropic
 
 from llms.config import ProviderSettings
 from llms.costs import Usage
 from llms.llm import LLMError, Message, OutputLimitExceeded, native_content, tool_call
+from tools.names import decode_tool_name, encode_tool_name
 
 
 class AnthropicProvider:
@@ -59,7 +60,7 @@ class AnthropicProvider:
                     {
                         "type": "tool_use",
                         "id": call.id,
-                        "name": call.name,
+                        "name": encode_tool_name(call.name),
                         "input": deepcopy(call.arguments),
                     }
                     for call in message.tool_calls or []
@@ -100,7 +101,7 @@ class AnthropicProvider:
                 )
             request["tools"] = [
                 {
-                    "name": tool.name,
+                    "name": encode_tool_name(tool.name),
                     "description": tool.description,
                     "input_schema": deepcopy(tool.parameters),
                 }
@@ -147,7 +148,7 @@ class AnthropicProvider:
             )
         blocks = response.get("content", [])
         calls = [
-            tool_call(b["id"], b["name"], b["input"])
+            tool_call(b["id"], decode_tool_name(b["name"]), b["input"])
             for b in blocks
             if b["type"] == "tool_use"
         ]

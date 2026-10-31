@@ -22,7 +22,7 @@ So put simply, the agent works on a constant loop, involving three main steps:
 2. Inference
 3. Action
 
-The perception stage is characterized by a combination of 1. environmental analysis, 2. memory recall, and 3. agency or will towards a goal. The inference stage is the call to the API, where the model (right now only OpenAI models) is given the perception to reason about. The action stage is where the agent takes the output of the model, such as tool calls, and actually runs them.
+The perception stage combines environmental analysis, session-local workspace views (tasks and a notepad), and memory recall. The inference stage is the call to the model API, where the model is given the perception to reason about. The action stage is where the agent takes the output of the model, such as tool calls, and actually runs them.
 
 ## Prerequisites
 
@@ -131,7 +131,7 @@ for completion diagnostics and bounded output-limit recovery settings.
 You might want to extend or enhance the functionality of the tool, and if you do I'd love to hear how it goes! Or even submit a PR if you think it should be a default.
 
 **Modifying Prompts**
-You can modify prompts in the `agent.py`, `agency.py`, `memory.py`, and `environment.py` files. These files are where you'll find the actual programmatic generation logic for several aspects of the prompt. Things might change over time, so I'm not going to go into specifics here. But you might find that you can gain further behavior by modifying these files.
+You can modify prompts in `agent/agent.py`, `agent/memory.py`, `agent/environment.py`, and the workspace modules under `agent/workspaces/`. See the [workspace interface](agent/workspaces/workspaces.md) for session-local tools and views. These files are where you'll find the actual programmatic generation logic for several aspects of the prompt. Things might change over time, so I'm not going to go into specifics here. But you might find that you can gain further behavior by modifying these files.
 
 The `system_prompt.md` file is the source of the agent's system prompt, which can be modified as well.
 
@@ -142,17 +142,23 @@ Set `[llm] provider` and the matching `[llm.providers.<provider>]` key/model in
 currently applies at startup.
 
 **Adding Tools**
-The `tools/` directory is where you'll find tools. Each tool must fit the `Tool` class, in order to be used by the agent. Check out `toolbox.py` to see a current list of included tools, and how they are used. If you want to add a tool, you can use the `write_file.py`, `read_file.py`, and `send_message_to_user.py` tools as a reference. More tools will be included in the future. This is another area where PRs are welcome.
+Tools are discrete functions composed into capability libraries under `tools/libraries/`: `fs`, `search`, `web`, `python`, and `shell`. Canonical names such as `fs.read` are mapped to provider-safe names at the adapter boundary. Tools return structured success, error, denial, or timeout results. See the [tooling inventory and execution policies](documentation/tooling.md) and [Adding a tool](documentation/adding-a-tool.md).
+
+Host shell commands require an **Approve once / Deny** selection for every invocation; approval is not sandboxing. Stateless Python uses a deny-default macOS OS sandbox and fails closed on unsupported hosts. The default web tools retrieve readable content without Chrome or JavaScript; browser automation is deferred.
+
+The shared interaction tools distinguish progress (`interaction.notify`), a question requiring a reply (`interaction.ask`), and a completed turn (`interaction.finish`). Finished turns return to the `You` prompt without requiring an answer; questions show `Reply`. Text-only answers also finish automatically. Waiting pauses unfinished tasks until the appropriate new stimulus arrives. See [interaction and waiting](documentation/tooling.md#interaction-and-waiting).
 
 ## Roles
 
-Roles are identities which can be adopted by the agent. They are are context-dependent, and each have their own set of tools which are provided to the agent. The agent can switch between roles at any time. `INCLUDED_ROLES` are defined in the `roles/config.py` file. You can learn more about roles in the [roles tutorial](/documentation/adding-a-role.md).
+Roles are identities which can be adopted by the agent. They are are context-dependent, and each have their own set of tools which are provided to the agent. The agent can switch between roles at any time. `ROLES_INCLUDED` are defined in the `roles/config.py` file. You can learn more about roles in the [roles tutorial](/documentation/adding-a-role.md).
 
 I'm still working on the roles system, bare with me. But you can see the beginnings of it in the `roles/` directory. Currently these roles are supported:
 
-- `Helpful Assistant`: A helpful assistant ready to take your questions and provide answers.
-- `Developer`: A dedicated developer with specialized tools for software development, testing, and debugging.
-- `Researcher`: A dedicated researcher with specialized tools for web research, data analysis, and documentation.
+- `Helpful Assistant`: Conversational assistance with filesystem, search, web retrieval, and isolated Python tools.
+- `Developer`: Project inspection, precise editing, verification, and approval-gated host shell execution, plus the shared capability libraries.
+- `Researcher`: Source discovery, retrieval, comparison, citations, artifact creation, and isolated calculations.
+
+Roles focus working practices rather than enforcing permissions, and the agent can switch freely. The system prompt includes each role's tool inventory; the current role is supplied on every iteration. Shared task, messaging, role-switching, and configured memory tools remain available across modes.
 
 > [!note]
 > To switch between roles, just ask the agent to do it. For example, you can say "I'd like some help with research...", or more specifically "I'd like to switch to the researcher role." You'll see a "Role [ROLE]" message to confirm.

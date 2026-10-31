@@ -1,6 +1,6 @@
 # Built-in, extensible memory
 
-Status: the initial built-in add/search implementation is available. Shared SQLite storage, standalone OpenAI embedding adapters, and the standard memory service interface are implemented. Model migration and import/export utilities remain follow-up work. See the [memory tutorial](../documentation/adding-memory.md) for current setup and extension instructions; the design below records the architecture and future direction.
+Status: built-in add/search, partial updates, and approval-gated soft removal are available. Shared SQLite storage, standalone OpenAI embedding adapters, and the standard memory service interface are implemented. Perception reports actual memory capabilities, recalls records with explicit IDs, and exposes tools according to backend support. Model migration and editable Markdown synchronization remain follow-up work. See the [memory tutorial](../documentation/adding-memory.md) for current setup and extension instructions; the design below records the architecture and future direction.
 
 ## Motivation
 
@@ -10,7 +10,7 @@ The goal is a single Simple Agent setup with persistent, useful recall. Preserve
 
 ## Current integration
 
-- `agent/memory.py` owns recall, prompt formatting, and the `add_memory` tool. The agent recalls memories before inference using current environment text.
+- `agent/memory.py` is the core memory module, owning recall, prompt formatting, domain operations, and the `memory.add`, `memory.update`, and approval-gated `memory.remove` tools. The harness registers `MemoryEngine.get_tools()` directly using the shared tooling interface. The agent recalls memories before inference using current environment text.
 - `memory/vector_store.py` defines a `Record` and a callable-based `VectorStore` wrapper. This is already an extension boundary, but only covers adding and searching.
 - `memory/simple_vector_store.py` calls the SVS HTTP API to search, build, and sync a store. It also reads and writes Markdown files directly in the configured source directory.
 - Adding a memory writes a title-named file and triggers synchronization. Search requests up to three records with a distance threshold of `0.4`.
@@ -24,7 +24,7 @@ The dependency is both an HTTP service and a shared-filesystem convention. Repla
 1. Persistent memory inside Simple Agent, with no SVS checkout, server, or shared directory required.
 2. A shared application SQLite database, with a memory table and corresponding vector virtual table using the `sqlite-vss` pattern. Memory is one consumer of application storage, not the owner of a memory-only database.
 3. A standalone `embeddings/` adapter module, patterned after `llms/`. Start with OpenAI using the existing SDK; providers remain independent of chat-model selection and memory storage.
-4. Existing semantic/episodic memory types, importance levels, explicit `add_memory` tool, and recall before inference.
+4. Existing semantic/episodic memory types, importance levels, explicit `memory.add` tool, and recall before inference.
 5. Persist embedding provenance and compatibility metadata from the start, so compatible vectors remain searchable and a model migration utility can be added later.
 6. A documented service contract implemented by built-in memory and available to custom adapters. Keep the existing SVS option during transition.
 
@@ -57,7 +57,7 @@ embeddings/embedding.py   shared adapter interface and metadata/result types
 embeddings/openai.py      initial provider implementation
 memory/service.py         Memory, SearchResult, MemoryService contract
 memory/sqlite.py          built-in memory service
-agent/memory.py           agent-facing recall and tools
+agent/memory.py           recall, domain operations, and core memory Tool/ToolResult definitions
 ```
 
 Other modules can add their own tables and consume `embeddings/` without depending on the memory module. Share storage infrastructure and embedding metadata conventions, not a generic table that forces all application data into the memory schema.
@@ -88,7 +88,7 @@ class MemoryService:
 
 `MemoryDraft` carries title, content, type, importance, namespace (defaulting to `default`), and optional metadata. `MemoryQuery` carries text, limit, and namespace; relevance filtering is configured in the service using its declared score semantics. Initially the built-in service accepts only the default namespace and rejects unsupported namespaces explicitly. Add returns the persisted memory, including its ID. Search returns relevant results in rank order, or an empty list. Define shared validation and operational errors, including the rule that failed writes cannot return success. Initialization and cleanup are explicit and safe to repeat.
 
-Maintenance CRUD can be introduced when needed, without making it a requirement for the initial custom adapter. Do not assume the existing SVS API provides per-memory CRUD. Document lifecycle, input/output models, ordering, namespace behavior, and errors as the adapter specification; an adapter should be verifiable against the same contract checks as built-in memory.
+Editing is an optional standard capability: `EditableMemoryService` adds get-by-ID and `update(memory_id, MemoryUpdate, namespace)`. Removal is a separate `RemovableMemoryService.remove(memory_id, namespace)` capability. Built-in SQLite memory implements both; add/search-only adapters remain valid. Updates preserve omitted fields, ID, creation time, and metadata, and refresh embeddings only for title/content changes. Soft removal retains a tombstone/content/provenance, removes vectors from recall indexes atomically, and is exposed through an approval-gated tool. Missing IDs and concurrent edits are explicit errors. Listing, restoration, and permanent deletion can be introduced later without expanding the minimum adapter contract.
 
 ### Standalone embedding adapters
 

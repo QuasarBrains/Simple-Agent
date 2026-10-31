@@ -1,14 +1,15 @@
 """Native OpenAI Responses adapter. Tool execution stays in the agent."""
 
-from copy import deepcopy
 import json
 import os
+from copy import deepcopy
 
 from openai import OpenAI
 
 from llms.config import ProviderSettings
 from llms.costs import Usage
 from llms.llm import LLMError, Message, OutputLimitExceeded, native_content, tool_call
+from tools.names import decode_tool_name, encode_tool_name
 
 
 class OpenAIProvider:
@@ -49,7 +50,7 @@ class OpenAIProvider:
                         {
                             "type": "function_call",
                             "call_id": call.id,
-                            "name": call.name,
+                            "name": encode_tool_name(call.name),
                             "arguments": json.dumps(call.arguments),
                         }
                     )
@@ -82,7 +83,7 @@ class OpenAIProvider:
             request["tools"] = [
                 {
                     "type": "function",
-                    "name": tool.name,
+                    "name": encode_tool_name(tool.name),
                     "description": tool.description,
                     "parameters": deepcopy(tool.parameters),
                     "strict": False,
@@ -142,7 +143,11 @@ class OpenAIProvider:
                         f"in response {response.get('id')} (response status={status}); not executed"
                     )
                 calls.append(
-                    tool_call(item["call_id"], item["name"], item["arguments"])
+                    tool_call(
+                        item["call_id"],
+                        decode_tool_name(item["name"]),
+                        item["arguments"],
+                    )
                 )
             elif item["type"] == "message":
                 for block in item.get("content", []):

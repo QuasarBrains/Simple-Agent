@@ -1,7 +1,7 @@
 """Native Google Interactions adapter using application-owned transcript replay."""
 
-from copy import deepcopy
 import os
+from copy import deepcopy
 
 from google import genai
 from google.genai import types
@@ -9,6 +9,7 @@ from google.genai import types
 from llms.config import ProviderSettings
 from llms.costs import Usage
 from llms.llm import LLMError, Message, native_content, tool_call
+from tools.names import decode_tool_name, encode_tool_name
 
 
 class GoogleProvider:
@@ -53,8 +54,9 @@ class GoogleProvider:
                     {
                         "type": "function_result",
                         "call_id": message.tool_call_id,
-                        "name": message.tool_name
-                        or call_names.get(message.tool_call_id),
+                        "name": encode_tool_name(
+                            message.tool_name or call_names.get(message.tool_call_id)
+                        ),
                         "result": message.content or "",
                         "is_error": message.is_error,
                     }
@@ -73,7 +75,7 @@ class GoogleProvider:
                     {
                         "type": "function_call",
                         "id": call.id,
-                        "name": call.name,
+                        "name": encode_tool_name(call.name),
                         "arguments": deepcopy(call.arguments),
                     }
                     for call in message.tool_calls or []
@@ -111,7 +113,7 @@ class GoogleProvider:
             request["tools"] = [
                 {
                     "type": "function",
-                    "name": tool.name,
+                    "name": encode_tool_name(tool.name),
                     "description": tool.description,
                     "parameters": deepcopy(tool.parameters),
                 }
@@ -159,7 +161,11 @@ class GoogleProvider:
         text, calls = [], []
         for step in steps:
             if step["type"] == "function_call":
-                calls.append(tool_call(step["id"], step["name"], step["arguments"]))
+                calls.append(
+                    tool_call(
+                        step["id"], decode_tool_name(step["name"]), step["arguments"]
+                    )
+                )
             elif step["type"] == "model_output":
                 for content in step.get("content", []):
                     if content["type"] != "text":
