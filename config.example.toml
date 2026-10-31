@@ -1,0 +1,85 @@
+# Copy to config.toml. This is the application's single local configuration file.
+# API keys may be set here; config.toml is ignored by Git. Environment overrides
+# are optional. No .env file is required. All monetary amounts are USD.
+# No monetary caps or prices are assumed by default. Unknown costs are reported.
+# To enforce caps, add exact provider/model prices below and uncomment budgets.
+
+[app]
+log_directory = "simple-agent-logs"
+verbose = false
+silence_actions = false
+
+[llm]
+provider = "openai" # openai, anthropic, google
+# display_max_chars = 10000 # Presentation only; history remains intact
+
+[llm.generation]
+max_output_tokens = 32768 # Headroom for reasoning plus detailed answers/tool arguments; not a target length
+max_output_retries = 1 # Retry only confirmed output-limit truncation, with fresh budget admission
+max_retry_output_tokens = 65536 # One retry can double the initial allowance; each attempt is budget-checked
+tool_choice = "auto" # auto, required (supported models only), none
+parallel_tool_calls = true # Multiple calls may be generated; execution is sequential
+# max_estimated_input_tokens = 100000 # Reject oversized full requests before dispatch
+# reasoning_effort = "low" # Provider/model-specific; omit to use provider defaults
+
+[llm.cost]
+currency = "USD"
+# request_budget = "0.10"
+# session_budget = "2.00"
+# task_budget = "0.50" # Single active task or the __shared__ allocation pool
+estimate_multiplier = 1.25
+estimate_overhead_tokens = 1024
+
+[llm.providers.openai]
+api_key = "" # Fill in your key here, or use OPENAI_API_KEY
+model = "gpt-6.1-terra" # Fast, efficient GPT-6.1 model; tool calling uses Responses
+timeout_seconds = 300
+# base_url = "https://api.openai.com/v1"
+
+[llm.providers.openai.generation]
+reasoning_effort = "medium" # OpenAI's recommended starting point for GPT-6.1 Terra
+
+[llm.providers.anthropic]
+api_key = "" # Or ANTHROPIC_API_KEY
+model = "claude-sonnet-5-5"
+supports_required_tools = false
+timeout_seconds = 120
+
+[llm.providers.google]
+api_key = "" # Or GEMINI_API_KEY
+model = "gemini-3.8-flash"
+timeout_seconds = 120
+
+# Provider generation options inherit [llm.generation]. Example:
+# [llm.providers.google.generation]
+# max_output_tokens = 8192
+# reasoning_effort = "low"
+
+# Pricing is an explicit operator-maintained catalog, not a live price feed.
+# Add one [[llm.pricing]] table for every model you use. Replace the placeholders
+# with verified numeric rates; do not uncomment this template unchanged.
+# Prices are per ONE MILLION tokens, not per token or per thousand tokens.
+# [[llm.pricing]]
+# provider = "openai"
+# model = "gpt-6.1-terra"
+# input_per_million = "<verified USD rate>"
+# output_per_million = "<verified USD rate>"
+# cached_input_per_million = "<verified USD rate>"
+# source = "https://developers.openai.com/api/docs/pricing"
+# effective_date = "YYYY-MM-DD"
+
+# Anthropic cache writes have separate categories. Add these to its pricing table:
+# cache_write_5m_per_million = "<verified USD rate>"
+# cache_write_1h_per_million = "<verified USD rate>"
+
+[memory]
+backend = "none" # none, local, simple_vector_store
+database_path = "datastore/simple-agent.sqlite3"
+recall_limit = 3
+context_token_budget = 1000
+embedding_provider = "openai" # Uses the OpenAI key above, independently of llm.provider
+embedding_model = "text-embedding-3-small"
+# embedding_dimensions = 1536
+# simple_vector_store_url = "http://localhost:8000"
+# simple_vector_store_directory = "/absolute/path/to/memories"
+# simple_vector_store_name = "simple-agent-memory"

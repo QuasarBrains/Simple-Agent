@@ -1,8 +1,9 @@
 from typing import Any
+
+from ddgs import DDGS
+
 from tools.index import Tool
 from utils.pubsub import PubSub
-
-from duckduckgo_search import DDGS
 
 
 def run_search_duckduckgo(args: Any, pubsub: PubSub) -> str:
@@ -11,7 +12,7 @@ def run_search_duckduckgo(args: Any, pubsub: PubSub) -> str:
 
     query = args.get("query")
 
-    results = DDGS().text(query)
+    results = DDGS().text(query, backend="duckduckgo")
 
     if not results:
         return "No results found for the given query."

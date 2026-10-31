@@ -1,179 +1,103 @@
-# Adding a Tool
-Adding a tool is a relatively straightforward process in Simple Agent, however there are some key concepts that are useful to understand.
+# Adding a tool
 
-## Tools Library
-All of the tools are defined under the `tools/libraries/` directory in the root of the project. The only library present by default is the `core/` library, which is a directory under `tools/libraries/` that contains all of the core tools that are used by the system. You can add new libraries by creating a new directory under `tools/libraries/` and adding tools to it. These can later be imported and used in `Roles`, which will be explained later.
+General-purpose tools are discrete functions grouped into capability libraries under `tools/libraries/`.
+A stateless library exports a `TOOLS` list; roles compose those lists or select individual tools.
+Core agent modules can own their instance-bound tools directly. For example,
+`agent/memory.py` exposes `MemoryEngine.get_tools()` for harness registration,
+using the same `Tool`, `ToolResult`, and execution policies as library tools.
+There is no tool inheritance hierarchy. See [the capability inventory](tooling.md).
 
-> [!note]
-> For information on Roles specifically, check out the [Adding a Role](./adding-a-role.md) guide.
+## Define an operation
 
-If you're looking to add tools, I'd recommend adding a new library to the `tools/libraries/` directory, and then making a new file for each tool you'd like to add. This will help keep your tools organized and easy to find. With that said, let's get started!
-
-## Tool Configuration
-Simple Agent tools all follow a common pattern, and ultimately must adapt to the `Tool` class, which you'll find in `tools/index.py`. The tool class looks like this:
 ```python
-@dataclass
-class Tool:
-    name: str
-    description: str
-    function: Callable[
-        [PubSub, Any], (str)
-    ]
-    parameters: Dict[str, Any]
-```
+from tools.index import Tool, ToolResult
 
-So a `Tool` must have a `name`, a `description`, a `function`, and `parameters` to be properly utilized by the system. The `name` and `description` are self-explanatory. We'll get to the function part. However, the `parameters` are used to define how the function should be called, and should follow the [JSON Schema](https://json-schema.org/) specification. The JSON Schema specification is a way to define the arguments that should be passed to a function, and so this is where you define what variables you need passed to your tool.
 
-For example, the `write_file` tool's definition looks like this:
-```python
-write_file = Tool(
-    name="write_file",
-    description="Write to a file",
+def run(arguments, pubsub):
+    return ToolResult(content=arguments["message"])
+
+
+TOOL = Tool(
+    name="custom.echo",
+    description="Return a message unchanged.",
     function=run,
     parameters={
         "type": "object",
-        "properties": {
-            "file_path": {
-                "type": "string",
-                "description": "The path to the file to read.",
-            },
-            "content": {
-                "type": "string",
-                "description": "The content to write to the file.",
-            },
-            "mode": {
-                "type": "string",
-                "enum": ["w", "a", "x"],
-                "description": "The mode to open the file in. Defaults to 'w'.",
-            },
-        },
-        "required": ["file_path", "content", "mode"],
-    },
-)
-```
-
-The `write_file` tool takes a `file_path`, `content`, and `mode` as arguments. The `file_path` is the path to the file to write to, the `content` is the content to write to the file, and the `mode` is the mode to open the file in. The `mode` is an enum, meaning it can only be one of the values in the list `["w", "a", "x"]`. The `required` field is a list of the arguments that are required to be passed to the function.
-
-> [!note]
-> This is a system which relies heavily on natural language, so it's important to describe your tool well, as it becomes part of the language model's prompt.
-
-As far as the `function` goes, this is what actually runs when the agent calls your tool. Going back to the `write_file` tool, the `run` function is defined as follows:
-
-```python
-def run(args: Any):
-    if not args:
-        return "Error running send_message_to_user: No message provided."
-    try:
-        contents = args.get("content")
-        with open(args["file_path"], "w") as file:
-            file.write(contents)
-        with open(args["file_path"], "r") as file:
-            content = file.read()
-            return f"New file content: \n{content}"
-
-        return "File not read."
-    except Exception as e:
-        return f"Error writing to file: {e}"
-```
-
-There are a couple of things to note here.
-
-First, **the function always returns a string**. This is important because this string will actually be passed to the model, and therefore should give context as to the results of the tool.
-
-Second, due to the technically unpredictable nature of the `args` passed, each tool should check to make sure that the arguments are present before trying to use them. This is why the `run` function checks to make sure that `args` is not `None` before trying to use it.
-
-I also want to mention, that a second argument is passed to all tools, which is the `PubSub` object. This object is used to publish messages to the user, and is used in the `send_message_to_user` tool, for example:
-
-```python
-def run(args: Any, ps: PubSub):
-    if not args:
-        return "Error running send_message_to_user: No message provided."
-    ps.publish("new_agent_message", args.get("content"))
-    return "Message sent to user."
-```
-
-You may choose to use this object in your tools, or you may not. It's up to you. If you choose not to use it, you may simply omit it from the function argument.
-
-## Adding to a Role
-
-> [!note]
-> For information on Roles specifically, check out the [Adding a Role](./adding-a-role.md) guide.
-
-Roles are defined in the `roles/` directory. By default, you'll find the core roles under the `core/` directory. To add a tool to a role, you'll need to first locate its definition. For example, the `Developer` role is located in `roles/core/developer.py`. In this file, you'll find the `Developer` role defined as follows:
-
-```python
-from roles.index import Role
-from tools.libraries.core.web_request import web_request
-# ...other imports...
-from tools.libraries.core.read_file import read_file
-
-TOOLS = [web_request, write_file, run_js, edit_file, exec_command, read_file]
-
-DEVELOPER = Role(
-    name="Developer",
-    identity="""
-    A dedicated developer with tools for developing software, building applications, managing projects, and debugging.
-    """,
-    tools=TOOLS,
-)
-```
-
-The agent only has access to the tools that are defined under the role that it's currently adopted. The Developer role would need to be adopted before these tools are all available. You can also overlap tools between roles, as some tools may be used by multiple roles. With that said, a role's tools are simply defined as a list of `Tool` objects, so to add a new tool to a role, you would simply add it to the list of tools in the role's definition.
-
-## Quick Example
-For now, we'll just use the example of an `echo` tool, which when called, will echo what is passed to it as a message.
-
-In the `tools/libraries/` directory, create a new directory called `custom/`.
-
-In the `tools/libraries/custom/` directory, create a new file called `echo.py`.
-
-Within this `echo.py` file, we're going to configure the `echo` tool. We'll start with the `run` function, which we will define as follows:
-
-```python
-def run(args: Any):
-    if not args.get("message"):
-        return "Error running echo: No message provided."
-    print(args.get("message"))
-    return args.get("message")
-```
-
-Now that we've configured the function itself, we need to define the `Tool` object. This will look like this:
-
-```python
-echo = Tool(
-    name="echo",
-    description="Echo a message",
-    function=run,
-    parameters={
-        "type": "object",
-        "properties": {
-            "message": {
-                "type": "string",
-                "description": "The message to echo.",
-            },
-        },
+        "properties": {"message": {"type": "string"}},
         "required": ["message"],
+        "additionalProperties": False,
     },
 )
+
+TOOLS = [TOOL]
 ```
 
-Now that we've defined the `echo` tool, we need to add it to a role. For this example, we'll add it to the `Developer` role. Open the `roles/core/developer.py` file and add the `echo` tool to the `TOOLS` list:
+Callables receive `(arguments, pubsub)`, even when they do not use PubSub.
+Parameters follow JSON Schema Draft 2020-12. Registration validates schemas;
+execution validates arguments and fills top-level property defaults before invoking
+an optional `prepare_arguments` function, then validates the prepared arguments again.
+Preparation must not execute the requested operation or introduce side effects.
+
+Canonical names use capability namespaces: `fs.read`, `web.fetch`, `custom.echo`.
+Adapters encode dots as double underscores (`fs__read`) in provider schemas and
+history, and decode returned calls. Native provider replay remains untouched.
+Names must fit the shared provider-safe 64-character limit after encoding.
+Double underscores and ambiguous underscore/dot boundaries are reserved.
+Legacy unnamespaced names remain supported.
+
+## Return an explicit result
+
+`ToolResult` contains:
+
+- `status`: `success`, `error`, `denied`, or `timeout`.
+- `content`: concise model-facing text.
+- `metadata`: JSON-serializable details such as resolved paths, source URLs,
+  exit codes, and explicit truncation indicators.
+
+Return an error status for expected failures rather than a successful string
+starting with `Error`. Uncaught exceptions become error results. A timeout or
+error does not imply that a mutation was rolled back. Bound expensive work and
+output inside the tool; the registry does not impose a universal output limit.
+
+Existing string-returning tools still work and are normalized to successful
+results. `Toolbox.execute_result()` returns the structured object; `execute()`
+retains its `(content, is_error)` interface and `run_tool()` returns content.
+The agent renders structured results as JSON in the model's transcript.
+
+## Approval and isolation
 
 ```python
-from roles.index import Role
-from tools.libraries.custom.echo import echo
-# ...other imports...
-from tools.libraries.core.read_file import read_file
+from tools.index import ExecutionPolicy
 
-TOOLS = [web_request, write_file, run_js, edit_file, exec_command, read_file, echo]
-
-DEVELOPER = Role(
-    name="Developer",
-    identity="""
-    A dedicated developer with tools for developing software, building applications, managing projects, and debugging.
-    """,
-    tools=TOOLS,
-)
+policy = ExecutionPolicy(requires_approval=True)
 ```
 
-Now, when the `Developer` role is adopted, the `echo` tool will be available to the agent.
+Attach `policy=policy` to a `Tool` to require approval on every registry invocation.
+The host supplies `Toolbox(..., approve=callback)`, where the callback accepts the
+tool and prepared arguments and returns `True` only for approval. No callback,
+denial, EOF, or interruption fails closed. The CLI offers Approve once / Deny,
+defaulting to Deny. Approval decisions also emit `tool.approval` events.
+
+The callback sees a defensive copy of the exact prepared arguments, including
+defaults. `shell.run` resolves its working directory before approval. Approval is
+for the invocation, not a frozen filesystem snapshot or a security sandbox.
+Always dispatch through the registry: directly calling a tool's Python function
+bypasses registry approval.
+
+`ExecutionPolicy(isolated=True)` is descriptive metadata, not a sandbox switch.
+A tool declaring it must implement and enforce its own isolation, as `python.run`
+does. Do not label a subprocess or stripped environment as a security sandbox.
+
+## Compose into a role
+
+```python
+from tools.libraries.custom import TOOLS as CUSTOM_TOOLS
+from tools.libraries.fs import TOOLS as FILESYSTEM_TOOLS
+
+TOOLS = [*FILESYSTEM_TOOLS, *CUSTOM_TOOLS]
+```
+
+Names must be unique in a toolbox. Re-registering the same object is permitted;
+registering a different object under an existing name is rejected.
+Shared harness operations (tasks, messaging, roles, optional memory) are registered
+separately and persist across role changes. See [Adding a role](adding-a-role.md).

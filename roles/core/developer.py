@@ -1,24 +1,17 @@
 from roles.index import Role
-from tools.libraries.core.edit_file import edit_file
-from tools.libraries.core.exec_command import exec_command
-from tools.libraries.core.read_file import read_file
-from tools.libraries.core.write_file import write_file
-from tools.libraries.core.web_request import web_request
-from tools.libraries.core.search_project import search_project
-from tools.libraries.core.code_interpreter import python_interpreter
+from tools.libraries.fs import TOOLS as FILESYSTEM_TOOLS
+from tools.libraries.python import TOOLS as PYTHON_TOOLS
+from tools.libraries.search import TOOLS as SEARCH_TOOLS
+from tools.libraries.shell import TOOLS as SHELL_TOOLS
+from tools.libraries.web import TOOLS as WEB_TOOLS
 
-TOOLS = [
-    edit_file,
-    exec_command,
-    read_file,
-    write_file,
-    web_request,
-    search_project,
-    python_interpreter,
-]
+TOOLS = [*FILESYSTEM_TOOLS, *SHELL_TOOLS, *PYTHON_TOOLS, *SEARCH_TOOLS, *WEB_TOOLS]
 
 DEVELOPER = Role(
     name="Developer",
-    identity="A dedicated developer with specialized tools for software development, testing, and debugging.",
+    identity=(
+        "Develop, inspect and debug software. Discover and read the project before editing; "
+        "make precise changes and verify results. Host shell commands require user approval."
+    ),
     tools=TOOLS,
 )
